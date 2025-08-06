@@ -1,6 +1,3 @@
-'''
-This script is for analyzing fantasy premier league data based on player positions.
-'''
 import pandas as pd
 import glob
 import os
@@ -17,25 +14,18 @@ def load_data():
         pandas.DataFrame: A single DataFrame containing all historical data.
     """
     path = 'history_data'
-    all_files = glob.glob(os.path.join(path, "fpl_*.csv"))
+    all_files = glob.glob(os.path.join(path, "*_data.csv"))
     
     li = []
     
-    cols_to_use = ['ID', 'Player Name', 'Position', 'HidPos', 'Team', 'Value', 'Status', 'Tot Pts', 'PPG', 'PPM', 'Min']
+    cols_to_use = ['code', 'minutes', 'points_per_game', 'total_points', 'birth_date', 'web_name', 'team_code', 'team_join_date', 'element_type']
 
     for filename in all_files:
         df = pd.read_csv(filename, index_col=None, header=0, encoding='utf-8-sig')
         df.columns = df.columns.str.replace('"', '') # Clean column names
 
-        # Handle different names for the ID column
-        if 'Id' in df.columns and 'ID' not in df.columns:
-            df.rename(columns={'Id': 'ID'}, inplace=True)
-        if 'Code' in df.columns and 'ID' not in df.columns:
-             df.rename(columns={'Code': 'ID'}, inplace=True)
-
         # Extract season from filename
-        season_part = os.path.basename(filename).split('fpl_')[1]
-        season = season_part.split('.csv')[0].replace('_', '-')
+        season = os.path.basename(filename).split('_data.csv')[0]
         df['season'] = season
         
         # Ensure all requested columns are present, fill missing with NaN
@@ -49,6 +39,19 @@ def load_data():
         li.append(df)
 
     frame = pd.concat(li, axis=0, ignore_index=True)
+    
+    # Rename to old column names
+    frame.rename(columns={
+        'code': 'ID',
+        'web_name': 'Player Name',
+        'element_type': 'Position',
+        'total_points': 'Tot Pts',
+        'points_per_game': 'PPG',
+        'minutes': 'Min'
+    }, inplace=True)
+    
+    positions = {1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD'}
+    frame['Position'] = frame.Position.map(positions)
     return frame
 
 def plot_position_curve_with_slope(df, position):
@@ -84,7 +87,7 @@ def plot_position_boxplot(df):
     Args:
         df (pd.DataFrame): The DataFrame containing player data.
     """
-    df_filtered = df[(df['Min'] > 1200) & (df['Position'].isin(['STR', 'MID', 'DEF']))].copy()
+    df_filtered = df[(df['Min'] > 1200) & (df['Position'].isin(['FWD', 'GK','MID', 'DEF']))].copy()
 
     plt.figure(figsize=(12, 8))
     sns.boxplot(data=df_filtered, x='Position', y='Tot Pts', hue='Position', palette='viridis')
@@ -127,12 +130,14 @@ def main():
     """
     all_data = load_data()
     
-    positions_to_plot = ['STR', 'MID', 'DEF']
+    positions_to_plot = ['FWD', 'MID', 'DEF']
     
     for position in positions_to_plot:
         plot_position_curve_with_slope(all_data, position)
 
     plot_position_boxplot(all_data)
+    
+    all_data[(all_data['Min'] > 1200)].groupby('Position')['PPG'].mean()
     
     plot_average_players_by_season(all_data)
 

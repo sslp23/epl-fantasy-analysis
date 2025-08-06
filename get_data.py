@@ -1,8 +1,9 @@
 import pandas as pd
 
-df_19_20 = pd.read_html("https://www.ffstuff.co.uk/playersFPL201920.php")[0]
+seasons = ['2016-17', '2017-18', '2018-19', '2019-20', '2020-21', '2021-22', '2022-23', '2023-24',
+           '2024-25']
 
-df_20_21 = pd.read_html("https://www.ffstuff.co.uk/playersFPL202021.php")[0]
+for s in seasons:
+    df = pd.read_csv(f'https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/refs/heads/master/data/{s}/players_raw.csv')
 
-df_19_20.to_csv('history_data/fpl_19_20.csv', index=False)
-df_20_21.to_csv('history_data/fpl_20_21.csv', index=False)
+    df.to_csv(f'history_data/{s}_data.csv')
