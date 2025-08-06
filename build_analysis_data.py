@@ -241,7 +241,10 @@ def main():
         'minutes_last_season', 'avg_minutes_last_2_seasons', 'avg_minutes_last_3_seasons',
         'minutes_last_season_same_team', 'avg_minutes_last_2_seasons_same_team', 'avg_minutes_last_3_seasons_same_team'
     ]
-    all_data_with_features[all_data_with_features.ID == 446008][cols_to_show]
+    
+    #all_data_with_features[all_data_with_features.ID == 446008][cols_to_show]
+
+    all_data_with_features.to_csv('fantasy_data_history.csv', index=False)
 
 
 if __name__ == "__main__":
