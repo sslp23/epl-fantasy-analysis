@@ -134,9 +134,13 @@ def main():
     # Filter for the current season
     current_season_data = data_with_hist[data_with_hist['season'] == '2025-26'].copy()
     
-    current_season_data[(current_season_data.avg_points_last_2_seasons > 5) & (current_season_data.points_last_season > 5)]
-    current_season_data[current_season_data['Player Name'] == 'M.Salah']
+    ftier = current_season_data[(current_season_data.avg_points_last_2_seasons > 5) & (current_season_data.points_last_season > 5)]
+    current_season_data[(current_season_data.avg_points_last_2_seasons > 4.4) & (current_season_data.points_last_season > 4.4) & (current_season_data.minutes_last_season > 1200) & (~current_season_data.ID.isin(ftier.ID.values.tolist()))]
 
+    current_season_data[(current_season_data.avg_points_last_2_seasons > 4.1) & (current_season_data.points_last_season > 4.1) & (~current_season_data.ID.isin(ftier.ID.values.tolist()))]
+    current_season_data[(current_season_data.avg_points_last_2_seasons > 3.5) & (current_season_data.points_last_season > 4.1) & (current_season_data.minutes_last_season > 1200) & (~current_season_data.ID.isin(ftier.ID.values.tolist()))]
+
+    current_season_data[current_season_data['Player Name'] == 'Odegaard']
 
 if __name__ == '__main__':
     main()

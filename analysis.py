@@ -45,6 +45,9 @@ def plot_analysis(anl_df, min_ppg = 4.4, min_minutes = 1200):
         ax2.bar_label(container)
     plt.show()
 
+def plot_stats(anl_df, min_ppg=4.4, min_minutes=1200):
+
+    filtered_df = anl_df[(anl_df.Min > min_minutes) & (anl_df.PPG > min_ppg)]
     # Plot 3: Mean of player points stats
     fig3, ax3 = plt.subplots()
     points_cols = ['points_last_season', 'avg_points_last_2_seasons', 'avg_points_last_3_seasons']
@@ -99,6 +102,20 @@ def main():
     plot_analysis(anl_df)
     plot_correlation_map(anl_df[(anl_df.Min > 1200)])
 
+    ppg_50th = get_ppg_pos(anl_df, 50)
+    print("\nPPG of the 50th player each season:", (ppg_50th))
+
+    ppg_50th = get_ppg_pos(anl_df, 70)
+    print("\nPPG of the 70th player each season:", (ppg_50th))
+
+    ppg_50th = get_ppg_pos(anl_df, 100)
+    print("\nPPG of the 100th player each season:", (ppg_50th))
+    
+    ppg_50th = get_ppg_pos(anl_df, 125)
+    print("\nPPG of the 125th player each season:", (ppg_50th))
+    
+    ppg_50th = get_ppg_pos(anl_df, 150)
+    print("\nPPG of the 150th player each season:", (ppg_50th))
 
     print('Better than 95% of the players?', anl_df[(anl_df.Min > 1200)].PPG.quantile(0.95))
     
@@ -108,21 +125,6 @@ def main():
     # 13.6 players on average on this group -> targets for first/mid 2nd round
 
     plot_analysis(anl_df, min_ppg=5)
-
-    ppg_50th = get_ppg_pos(anl_df, 50)
-    print("\nPPG of the 50th player each season:", (ppg_50th))
-
-    ppg_50th = get_ppg_pos(anl_df, 70)
-    print("\nPPG of the 50th player each season:", (ppg_50th))
-
-    ppg_50th = get_ppg_pos(anl_df, 100)
-    print("\nPPG of the 50th player each season:", (ppg_50th))
-    
-    ppg_50th = get_ppg_pos(anl_df, 125)
-    print("\nPPG of the 50th player each season:", (ppg_50th))
-    
-    ppg_50th = get_ppg_pos(anl_df, 150)
-    print("\nPPG of the 50th player each season:", (ppg_50th))
     
 
 
