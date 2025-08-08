@@ -139,6 +139,86 @@ def calculate_new_in_team(df):
         
     return pd.concat(df_list, ignore_index=True)
 
+def calculate_additional_features(df):
+    """
+    Calculates additional features based on past season data.
+    - max_minutes_in_position_past_season: For new players in a team, the max minutes
+      played by anyone in that position in that team last season.
+    - max_minutes_by_signing_past_season: For existing players, the max minutes
+      played by a new signing in that team last season.
+    - time_in_league: Number of previous seasons the player has been in the league.
+    - avg_ppg_position_team_high_minutes: For new players in a team, the average PPG
+      of players in the same position and team from the previous season, with >1400 minutes.
+    """
+    # Sort by ID and season to ensure correct historical calculations
+    df_sorted = df.sort_values(['ID', 'season']).reset_index(drop=True)
+    
+    # --- Feature 3: time_in_league ---
+    # Easiest to calculate first. cumcount gives 0 for the first appearance, 1 for second, etc.
+    df_sorted['time_in_league'] = df_sorted.groupby('ID').cumcount()
+    
+    # Get unique seasons and create a mapping from a season to its previous one
+    seasons = sorted(df_sorted['season'].unique())
+    season_map = {season: prev_season for season, prev_season in zip(seasons[1:], seasons[:-1])}
+    
+    # Create a 'previous_season' column to merge on
+    df_sorted['previous_season'] = df_sorted['season'].map(season_map)
+
+    # --- Feature 1: max_minutes_in_position_past_season ---
+    # Pre-calculate max minutes per team/position for all seasons
+    max_min_pos = df_sorted.groupby(['season', 'team_code', 'Position'])['Min'].max().reset_index()
+    max_min_pos.rename(columns={'Min': 'max_minutes_in_position_past_season', 'season': 'previous_season'}, inplace=True)
+    
+    # Merge this data into the main dataframe
+    df_with_features = pd.merge(
+        df_sorted,
+        max_min_pos,
+        how='left',
+        left_on=['previous_season', 'team_code', 'Position'],
+        right_on=['previous_season', 'team_code', 'Position']
+    )
+    # Set the value to NaN if the player is not new in the team
+    df_with_features['max_minutes_in_position_past_season'] = df_with_features['max_minutes_in_position_past_season'].where(df_with_features['New In Team'], np.nan)
+
+    # --- Feature 2: max_minutes_by_signing_past_season ---
+    # Get all new signings from all seasons
+    new_signings = df_sorted[df_sorted['New In Team'] == True]
+    # Calculate the max minutes for these signings per team and season
+    max_min_signings = new_signings.groupby(['season', 'team_code'])['Min'].max().reset_index()
+    max_min_signings.rename(columns={'Min': 'max_minutes_by_signing_past_season', 'season': 'previous_season'}, inplace=True)
+
+    # Merge this data into the main dataframe
+    df_with_features = pd.merge(
+        df_with_features,
+        max_min_signings,
+        how='left',
+        left_on=['previous_season', 'team_code'],
+        right_on=['previous_season', 'team_code']
+    )
+    # Set the value to NaN if the player is not an existing player
+    df_with_features['max_minutes_by_signing_past_season'] = df_with_features['max_minutes_by_signing_past_season'].where(df_with_features['New In Team'] == False, np.nan)
+
+    # --- New Feature: avg_ppg_position_team_high_minutes ---
+    # Pre-calculate average PPG for players with >1400 minutes per team/position for all seasons
+    avg_ppg_pos_team = df_sorted[df_sorted['Min'] > 1400].groupby(['season', 'team_code', 'Position'])['PPG'].mean().reset_index()
+    avg_ppg_pos_team.rename(columns={'PPG': 'avg_ppg_position_team_high_minutes', 'season': 'previous_season'}, inplace=True)
+
+    # Merge this data into the main dataframe
+    df_with_features = pd.merge(
+        df_with_features,
+        avg_ppg_pos_team,
+        how='left',
+        left_on=['previous_season', 'team_code', 'Position'],
+        right_on=['previous_season', 'team_code', 'Position']
+    )
+    # Set the value to NaN if the player is not new in the team
+    df_with_features['avg_ppg_position_team_high_minutes'] = df_with_features['avg_ppg_position_team_high_minutes'].where(df_with_features['New In Team'], np.nan)
+
+    # Clean up helper column
+    df_with_features.drop(columns=['previous_season'], inplace=True)
+    
+    return df_with_features
+
 def calculate_historical_features(df):
     """
     Calculates historical performance metrics for each player.
@@ -222,6 +302,7 @@ def main():
     
     all_data_with_features = calculate_new_in_league(all_data)
     all_data_with_features = calculate_new_in_team(all_data_with_features)
+    all_data_with_features = calculate_additional_features(all_data_with_features)
     all_data_with_features = calculate_historical_features(all_data_with_features)
     
     print("Sample of the data with the 'New In League' feature:")
@@ -233,19 +314,49 @@ def main():
     print("\nSample of players who are 'New In Team':")
     print(all_data_with_features[all_data_with_features['New In Team'] == True].head())
 
-    print("\nSample of historical data for a player (ID 446008):")
     # Add new columns to the print statement for verification
     cols_to_show = [
         'season', 'Player Name', 'Position', 'team_code', 'PPG', 'Min',
         'points_last_season', 'avg_points_last_2_seasons', 'avg_points_last_3_seasons',
         'minutes_last_season', 'avg_minutes_last_2_seasons', 'avg_minutes_last_3_seasons',
-        'minutes_last_season_same_team', 'avg_minutes_last_2_seasons_same_team', 'avg_minutes_last_3_seasons_same_team'
+        'minutes_last_season_same_team', 'avg_minutes_last_2_seasons_same_team', 'avg_minutes_last_3_seasons_same_team',
+        'time_in_league', 'max_minutes_in_position_past_season', 'max_minutes_by_signing_past_season',
+        'avg_ppg_position_team_high_minutes'
     ]
     
     #all_data_with_features[all_data_with_features.ID == 446008][cols_to_show]
 
+    print("\n--- Verification of New Columns ---")
+    print("\nTime in League (sample):")
+    print(all_data_with_features[['Player Name', 'season', 'time_in_league']].tail())
+
+    print("\nMax Minutes in Position (New Players Sample):")
+    seasons = sorted(all_data_with_features['season'].unique())
+    if len(seasons) > 1:
+        new_players_sample = all_data_with_features[
+            (all_data_with_features['New In Team'] == True) & (all_data_with_features['season'] > seasons[0])
+        ]
+        print(new_players_sample[['season', 'Player Name', 'team_code', 'Position', 'max_minutes_in_position_past_season']].head())
+
+    print("\nMax Minutes by Signing (Existing Players Sample):")
+    if len(seasons) > 1:
+        existing_players_sample = all_data_with_features[
+            (all_data_with_features['New In Team'] == False) & (all_data_with_features['season'] > seasons[0])
+        ]
+        print(existing_players_sample[['season', 'Player Name', 'team_code', 'max_minutes_by_signing_past_season']].head())
+
+    print("\nAverage PPG for New Players in Position (Sample):")
+    if len(seasons) > 1:
+        new_players_sample = all_data_with_features[
+            (all_data_with_features['New In Team'] == True) & (all_data_with_features['season'] > seasons[0])
+        ]
+        print(new_players_sample[['season', 'Player Name', 'team_code', 'Position', 'avg_ppg_position_team_high_minutes']].head())
+
+    all_data_with_features = all_data_with_features[~all_data_with_features.Position.isna()]
+    all_data_with_features
     all_data_with_features.to_csv('fantasy_data_history.csv', index=False)
 
 
 if __name__ == "__main__":
     main()
+

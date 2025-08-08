@@ -47,6 +47,68 @@ def calculate_new_in_team(current_season_df, past_seasons_df):
 
     return current_season_df
 
+def calculate_additional_features(df):
+    """
+    Calculates additional features based on past season data.
+    - max_minutes_in_position_past_season: For new players in a team, the max minutes
+      played by anyone in that position in that team last season.
+    - max_minutes_by_signing_past_season: For existing players, the max minutes
+      played by a new signing in that team last season.
+    - time_in_league: Number of previous seasons the player has been in the league.
+    """
+    # Sort by ID and season to ensure correct historical calculations
+    df_sorted = df.sort_values(['ID', 'season']).reset_index(drop=True)
+    
+    # --- Feature 3: time_in_league ---
+    # Easiest to calculate first. cumcount gives 0 for the first appearance, 1 for second, etc.
+    df_sorted['time_in_league'] = df_sorted.groupby('ID').cumcount()
+    
+    # Get unique seasons and create a mapping from a season to its previous one
+    seasons = sorted(df_sorted['season'].unique())
+    season_map = {season: prev_season for season, prev_season in zip(seasons[1:], seasons[:-1])}
+    
+    # Create a 'previous_season' column to merge on
+    df_sorted['previous_season'] = df_sorted['season'].map(season_map)
+
+    # --- Feature 1: max_minutes_in_position_past_season ---
+    # Pre-calculate max minutes per team/position for all seasons
+    max_min_pos = df_sorted.groupby(['season', 'team_code', 'Position'])['Min'].max().reset_index()
+    max_min_pos.rename(columns={'Min': 'max_minutes_in_position_past_season', 'season': 'previous_season'}, inplace=True)
+    
+    # Merge this data into the main dataframe
+    df_with_features = pd.merge(
+        df_sorted,
+        max_min_pos,
+        how='left',
+        left_on=['previous_season', 'team_code', 'Position'],
+        right_on=['previous_season', 'team_code', 'Position']
+    )
+    # Set the value to NaN if the player is not new in the team
+    df_with_features['max_minutes_in_position_past_season'] = df_with_features['max_minutes_in_position_past_season'].where(df_with_features['New In Team'], np.nan)
+
+    # --- Feature 2: max_minutes_by_signing_past_season ---
+    # Get all new signings from all seasons
+    new_signings = df_sorted[df_sorted['New In Team'] == True]
+    # Calculate the max minutes for these signings per team and season
+    max_min_signings = new_signings.groupby(['season', 'team_code'])['Min'].max().reset_index()
+    max_min_signings.rename(columns={'Min': 'max_minutes_by_signing_past_season', 'season': 'previous_season'}, inplace=True)
+
+    # Merge this data into the main dataframe
+    df_with_features = pd.merge(
+        df_with_features,
+        max_min_signings,
+        how='left',
+        left_on=['previous_season', 'team_code'],
+        right_on=['previous_season', 'team_code']
+    )
+    # Set the value to NaN if the player is not an existing player
+    df_with_features['max_minutes_by_signing_past_season'] = df_with_features['max_minutes_by_signing_past_season'].where(df_with_features['New In Team'] == False, np.nan)
+
+    # Clean up helper column
+    df_with_features.drop(columns=['previous_season'], inplace=True)
+    
+    return df_with_features
+
 def calculate_historical_features(df):
     """
     Calculates historical performance metrics for each player.
@@ -122,13 +184,14 @@ def calculate_historical_features(df):
 def main():
     df = load_data()
 
-    past_data = pd.read_csv('fantasy_data_history.csv', usecols=['Player Name', 'ID', 'PPG', 'season', 'Min', 'team_code'])
+    past_data = pd.read_csv('fantasy_data_history.csv', usecols=['Player Name', 'ID', 'PPG', 'season', 'Min', 'team_code', 'New In Team'])
     
     df = calculate_new_in_league(df, past_data)
     df = calculate_new_in_team(df, past_data)
 
     # For historical features, we combine, calculate, and then filter
     combined_data = pd.concat([past_data, df], ignore_index=True)
+    combined_data = calculate_additional_features(combined_data)
     data_with_hist = calculate_historical_features(combined_data)
     
     # Filter for the current season
@@ -145,3 +208,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
