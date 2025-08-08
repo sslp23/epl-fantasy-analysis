@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 def load_data():
-    cols_to_use = ['code', 'minutes', 'points_per_game', 'birth_date', 'web_name', 'team_code', 'team_join_date', 'element_type', 'season']
+    cols_to_use = ['code', 'minutes', 'points_per_game', 'web_name', 'team_code', 'element_type', 'season']
     
     df = pd.read_csv('curr_data/2025-26_data.csv')
     
@@ -134,13 +134,14 @@ def main():
     # Filter for the current season
     current_season_data = data_with_hist[data_with_hist['season'] == '2025-26'].copy()
     
+    current_season_data
     ftier = current_season_data[(current_season_data.avg_points_last_2_seasons > 5) & (current_season_data.points_last_season > 5)]
     current_season_data[(current_season_data.avg_points_last_2_seasons > 4.4) & (current_season_data.points_last_season > 4.4) & (current_season_data.minutes_last_season > 1200) & (~current_season_data.ID.isin(ftier.ID.values.tolist()))]
 
     current_season_data[(current_season_data.avg_points_last_2_seasons > 4.1) & (current_season_data.points_last_season > 4.1) & (~current_season_data.ID.isin(ftier.ID.values.tolist()))]
     current_season_data[(current_season_data.avg_points_last_2_seasons > 3.5) & (current_season_data.points_last_season > 4.1) & (current_season_data.minutes_last_season > 1200) & (~current_season_data.ID.isin(ftier.ID.values.tolist()))]
 
-    current_season_data[current_season_data['Player Name'] == 'Odegaard']
+    current_season_data[current_season_data['Player Name'] == 'Ødegaard']
 
 if __name__ == '__main__':
     main()
