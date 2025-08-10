@@ -181,13 +181,62 @@ def calculate_historical_features(df):
 
     return df_with_hist
 
+def calculate_new_in_league_features(current_season_df, past_seasons_df):
+    """
+    Calculates features for players who are new to the league.
+    - max_ppg_in_team_position_last_season: Max PPG in the same team/position last season.
+    - influential_player_left: True if a player with >3 PPG and >1500 mins left the team.
+    """
+    if 'New In League' not in current_season_df.columns:
+        return current_season_df
+
+    position_mapper = {1: 'GK', 2: 'DEF', 3: 'MID', 4: 'FWD'}
+    current_season_df['Position Name'] = current_season_df['Position'].map(position_mapper)
+
+    last_season_name = sorted(past_seasons_df['season'].unique())[-1]
+    last_season_df = past_seasons_df[past_seasons_df['season'] == last_season_name].copy()
+    last_season_df['Position Name'] = last_season_df['Position']#.map(position_mapper)
+
+    # Feature 1: Max PPG in team/position last season
+    max_ppg_last_season = last_season_df[last_season_df.Min > 1500].groupby(['team_code', 'Position Name'])['PPG'].max().reset_index()
+    max_ppg_last_season.rename(columns={'PPG': 'max_ppg_in_team_position_last_season'}, inplace=True)
+
+    current_season_df = pd.merge(
+        current_season_df,
+        max_ppg_last_season,
+        how='left',
+        on=['team_code', 'Position Name']
+    )
+    current_season_df['max_ppg_in_team_position_last_season'] = current_season_df['max_ppg_in_team_position_last_season'].where(current_season_df['New In League'], np.nan)
+
+    # Feature 2: Influential player left the team
+    influential_players = last_season_df[((last_season_df['PPG'] > 3) & (last_season_df['Min'] > 1500)) | ((last_season_df['Min'] > 2300))]
+    current_player_teams = current_season_df.set_index('ID')['team_code']
+    influential_players['current_team_code'] = influential_players['ID'].map(current_player_teams)
+    influential_left = influential_players[
+        (influential_players['current_team_code'] != influential_players['team_code']) |
+        (influential_players['current_team_code'].isnull())
+    ]
+    teams_and_positions_that_lost_player = influential_left[['team_code', 'Position Name']].drop_duplicates()
+    
+    current_season_df['influential_player_left'] = current_season_df.apply(
+        lambda row: tuple(row[['team_code', 'Position Name']]) in set(map(tuple, teams_and_positions_that_lost_player.to_numpy())),
+        axis=1
+    )
+    current_season_df['influential_player_left'] = current_season_df['influential_player_left'].where(current_season_df['New In League'], np.nan)
+
+    return current_season_df
+
+
 def main():
     df = load_data()
 
-    past_data = pd.read_csv('fantasy_data_history.csv', usecols=['Player Name', 'ID', 'PPG', 'season', 'Min', 'team_code', 'New In Team'])
+    past_data = pd.read_csv('fantasy_data_history.csv', usecols=['Player Name', 'ID', 'PPG', 'season', 'Min', 'team_code', 'New In Team', 'Position'])
     
     df = calculate_new_in_league(df, past_data)
     df = calculate_new_in_team(df, past_data)
+    
+    df = calculate_new_in_league_features(df, past_data)
 
     # For historical features, we combine, calculate, and then filter
     combined_data = pd.concat([past_data, df], ignore_index=True)

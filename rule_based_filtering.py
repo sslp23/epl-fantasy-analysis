@@ -29,9 +29,41 @@ def apply_filters(data, filters_columns = [], filters_values = [], relationships
 
     return data_filtered
 
+def write_tiers_to_excel(tiers, filename='player_tiers.xlsx'):
+    """
+    Writes a list of DataFrames to an Excel file, each in a separate sheet.
+    Adjusts column widths to fit the content.
+
+    Args:
+        tiers (list): A list of pandas DataFrames.
+        filename (str): The name of the Excel file to create.
+    """
+    with pd.ExcelWriter(filename, engine='xlsxwriter') as writer:
+        for i, df in enumerate(tiers):
+            sheet_name = f'Tier {i+1}'
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+            worksheet = writer.sheets[sheet_name]
+            for j, col in enumerate(df.columns):
+                # find length of column header and data
+                column_len = max((df[col].astype(str).map(len).max()), len(str(col)))
+                # set column width
+                worksheet.set_column(j, j, column_len + 2)
+
 def main():
     data = pd.read_csv('25_26_data_parsed.csv')
     data = data[data['Player Name'] != 'Luis Díaz']
+
+    data.sort_values('minutes_last_season', ascending=False)[['team_code', 'Player Name']].drop_duplicates('team_code')
+
+    team_mapper = {3: 'Arsenal', 11: 'Everton', 94: 'Brentford', 54: 'Fulham', 17: 'Nottingham Forest', 
+                   31: 'Crystal Palace', 1: 'Manchester United', 14: 'Liverpool', 8: 'Chelsea',
+                   21: 'West Ham', 4: 'Newcastle', 43: 'Manchester City', 36: 'Brighton',
+                   91: 'Bournemouth', 7: 'Aston Villa', 2: 'Leeds United', 6: 'Tottenham',
+                   56: 'Sunderland', 90: 'Burnley', 39: 'Wolverhampton'}
+
+    position_mapper = {1: 'GK', 2:'DEF', 3:'MID', 4:'FWD'}
+    data['Position Name'] = data.Position.map(position_mapper)
+    data['Team Name'] = data.team_code.map(team_mapper)
 
     # First tier filtering:
     filter_cols = ['New In Team', 'points_last_season', 'avg_points_last_2_seasons', 'avg_minutes_last_2_seasons']
@@ -161,13 +193,134 @@ def main():
     tier3_full = pd.concat([tier3_fwd, tier3_def, tier3_gk, tier3_mid])
 
     len(top_tier)+len(tier2_full)+len(tier3_full)
+    data_filt = data_filt[~data_filt.ID.isin(tier3_full.ID.values)]
 
+    # Tier 4 players
+    # GKs, MIDs and DEFs have some options, so I'll work with lowering thresholds
+    # FWDs -> trying to find good PPG in lower mins played
 
+    # DEFs -> new in team players
+    filter_vals = [True, 3, 0, 2266.0]
+    relationship = ['==', '>=', '>=', '>=']
+    filter_cols = ['New In Team', 'points_last_season', 'avg_points_last_2_seasons', 'avg_minutes_last_2_seasons']
 
+    filtered_data = apply_filters(data_filt[data_filt.Position == 2], filters_columns=filter_cols, filters_values=filter_vals, relationships = relationship)
+    tier4_def_new = filtered_data.copy()
 
+    # DEFs -> not new  in team players
+    filter_vals = [False, 3, 0, 1500.0]
+    relationship = ['==', '>=', '>=', '>=']
+    filter_cols = ['New In Team', 'points_last_season', 'avg_points_last_2_seasons', 'avg_minutes_last_2_seasons']
 
+    filtered_data = apply_filters(data_filt[data_filt.Position == 2], filters_columns=filter_cols, filters_values=filter_vals, relationships = relationship)
+    tier4_def = filtered_data.copy()
+    manual_adjustments = ['Burn', 'Colwill']
+    tier4_def = tier4_def[~tier4_def['Player Name'].isin(manual_adjustments)]
+    tier4_def = pd.concat([tier4_def, tier4_def_new])
+
+    # MIDs
+    filter_vals = [False, 3.1, 0, 1813.0]
+    relationship = ['==', '>=', '>=', '>=']
+    filter_cols = ['New In Team', 'points_last_season', 'avg_points_last_2_seasons', 'minutes_last_season']
+
+    filtered_data = apply_filters(data_filt[data_filt.Position == 3], filters_columns=filter_cols, filters_values=filter_vals, relationships = relationship)
+    tier4_mid = filtered_data.copy()
+    tier4_mid
+
+    # FWDs
+    filter_vals = [3.05, 0, 1195.0]
+    relationship = ['>=', '>=', '>=']
+    filter_cols = [ 'points_last_season', 'avg_points_last_2_seasons', 'minutes_last_season']
+
+    filtered_data = apply_filters(data_filt[data_filt.Position == 4], filters_columns=filter_cols, filters_values=filter_vals, relationships = relationship)
+    tier4_fwd = filtered_data.copy()
+    tier4_fwd = tier4_fwd[~tier4_fwd['Player Name'].isin(['Foster'])]
     
-    #data_filt[data_filt['Player Name'].str.contains('Georginio')]
+
+    # GKs
+    filter_vals = [False, 3.4, 0, 2500.0]
+    relationship = ['==', '>=', '>=', '>=']
+    filter_cols = ['New In Team', 'points_last_season', 'avg_points_last_2_seasons', 'minutes_last_season']
+
+    filtered_data = apply_filters(data_filt[data_filt.Position == 1], filters_columns=filter_cols, filters_values=filter_vals, relationships = relationship)
+    tier4_gk = filtered_data.copy()
+    tier4_full = pd.concat([tier4_gk, tier4_def,tier4_mid,tier4_fwd])
+
+    #Tier 5 - last tier before entering the filter by initial schedule
+    # Starting with DEFs
+    data_filt = data_filt[~data_filt.ID.isin(tier4_full.ID.values)]
+    filter_vals = [False, 0, 2.8, 2690.0]
+    relationship = ['==', '>=', '>=', '>=']
+    filter_cols = ['New In Team', 'points_last_season', 'avg_points_last_2_seasons', 'avg_minutes_last_2_seasons']
+
+    filtered_data = apply_filters(data_filt[data_filt.Position == 2], filters_columns=filter_cols, filters_values=filter_vals, relationships = relationship)
+    tier5_def = filtered_data.copy()
+    tier5_def
+
+    # Tier 5 - Mid - Players with Experience
+    filter_vals = [False, 2, 2.9, 1500]
+    relationship = ['==', '>=', '>=', '>=']
+    filter_cols = ['New In Team', 'time_in_league', 'avg_points_last_2_seasons', 'avg_minutes_last_2_seasons']
+
+    filtered_data = apply_filters(data_filt[data_filt.Position == 3], filters_columns=filter_cols, filters_values=filter_vals, relationships = relationship)
+    tier5_mid_old = filtered_data.copy()
+    manual_adjustments = ['Maddison', 'Bailey']
+    tier5_mid_old = tier5_mid_old[~tier5_mid_old['Player Name'].isin(manual_adjustments)]
+    tier5_mid_old
+
+    # Tier 5 - Mid - Players with low Experience
+    data_filt = data_filt[~data_filt.ID.isin(tier5_mid_old.ID.values)]
+    filter_vals = [False, 2, 3, 1000]
+    relationship = ['==', '<=', '>=', '>=']
+    filter_cols = ['New In Team', 'time_in_league', 'points_last_season', 'minutes_last_season']
+
+    filtered_data = apply_filters(data_filt[data_filt.Position == 3], filters_columns=filter_cols, filters_values=filter_vals, relationships = relationship)
+    tier5_mid_new = filtered_data.copy()
+    
+    tier5_mid = pd.concat([tier5_mid_new, tier5_mid_old])
+    
+    # Tier 5 GKs
+    filter_vals = [False, 0, 3., 2000.0]
+    relationship = ['==', '>=', '>=', '>=']
+    filter_cols = ['New In Team', 'points_last_season', 'avg_points_last_2_seasons', 'minutes_last_season']
+
+    filtered_data = apply_filters(data_filt[data_filt.Position == 1], filters_columns=filter_cols, filters_values=filter_vals, relationships = relationship)
+    tier5_gk = filtered_data.copy()
+    manual_adjustments = ['Ederson M.', 'José Sá']
+    tier5_gk = tier5_gk[~tier5_gk['Player Name'].isin(manual_adjustments)]
+
+    tier5_full = pd.concat([tier5_def, tier5_mid, tier5_gk])
+
+    # Tier 6 - Players New In league
+    # Here it works like a bonus tier
+    # As shown, new in league players are a very risky group
+    # The idea is to find players who will be replacements for good players in the past season
+
+    filter_vals = [True, True, 2.5]
+    relationship = ['==', '==', '>=', '>=']
+    filter_cols = ['New In League', 'influential_player_left', 'max_ppg_in_team_position_last_season']
+
+    filtered_data = apply_filters(data_filt, filters_columns=filter_cols, filters_values=filter_vals, relationships = relationship)
+    bonus_tier = filtered_data.copy()
+    bonus_tier['Notes'] = len(bonus_tier)*[' ']
+
+    cols = ['ID', 'Player Name', 'Position Name', 'Team Name', 'points_last_season', 'avg_points_last_2_seasons', 'minutes_last_season', 'Notes']
+
+    bonus_tier.drop('points_last_season', axis=1, inplace=True)
+    bonus_tier.rename(columns = {'max_ppg_in_team_position_last_season': 'points_last_season'}, inplace=True)
+    bonus_tier = bonus_tier[cols]
+
+    tiers = [top_tier, tier2_full, tier3_full, tier4_full, tier5_full, bonus_tier]
+
+    new_tiers = []
+
+
+    for t in tiers:
+        t['Notes'] = ['']*len(t)
+        t = t[cols]
+        new_tiers.append(t)
+
+    write_tiers_to_excel(new_tiers)
 
 
 if __name__ == '__main__':

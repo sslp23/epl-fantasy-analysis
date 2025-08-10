@@ -399,7 +399,107 @@ def main():
     plot_feature_distribution_by_ppg(target_base[target_base.Position == 'DEF'], min_ppg=3.8, features=features_minutes)
     target_base[(target_base.PPG > 3.8) & (target_base.Position == 'DEF')].points_last_season.quantile(0.25)
     target_base[(target_base.PPG > 3.8) & (target_base.Position == 'DEF')].avg_points_last_2_seasons.quantile(0.25)
+
+    # Now GKs, MIDs and DEFs have some options, so I'll work with lowering thresholds
+    # FWDs -> trying to find good PPG in lower mins played
+    ppg_100th = get_ppg_pos(anl_df, 100)
+    print("\nPPG of the 100th player each season:", (ppg_100th))
+    # Our target is to find players with >3.5 PPG. Let's see what makes difference to achieve this on DEFs
     
+    get_pct_succesfull_new(anl_df[anl_df.Position == 'DEF'], min_ppg=3.5, new_in_league = False)
+    # Since 9% of new in team players are beating this minimum of 3.5 PPG, I'll look at new in league
+    plot_feature_distribution_by_ppg(target_new[target_new.Position == 'DEF'], min_ppg=3.5, features=features_points)
+    plot_feature_distribution_by_ppg(target_new[target_new.Position == 'DEF'], min_ppg=3.5, features=features_minutes)
+    
+    # I'll use Q1 in points last season and Q2 in minutes
+    target_new[(target_new.PPG > 3.5) & (target_new.Position == 'DEF')].avg_minutes_last_2_seasons.quantile(0.5)
+    target_new[(target_new.PPG > 3.5) & (target_new.Position == 'DEF')].points_last_season.quantile(0.25)
+
+    # Same analysis for players that aren't new in team
+    plot_feature_distribution_by_ppg(target_base[target_base.Position == 'DEF'], min_ppg=3.5, features=features_points)
+    plot_feature_distribution_by_ppg(target_base[target_base.Position == 'DEF'], min_ppg=3.5, features=features_minutes)
+    
+    # I'll use Q1 in points last season. Minutes aren't a huge differentiator
+    target_base[(target_base.PPG > 3.5) & (target_base.Position == 'DEF')].avg_minutes_last_2_seasons.quantile(0.5)
+    target_base[(target_base.PPG > 3.5) & (target_base.Position == 'DEF')].points_last_season.quantile(0.25)
+
+    # Let's take a look at mifielders
+    plot_feature_distribution_by_ppg(target_base[target_base.Position == 'MID'], min_ppg=3.5, features=features_points)
+    plot_feature_distribution_by_ppg(target_base[target_base.Position == 'MID'], min_ppg=3.5, features=features_minutes)
+
+    # Since I'm using a high threshold for minutes for MIDs, now I'll stick with the Q1 for minutes_last_season, that's lower
+    # Also I'll use Q1 of points_last_season. To get more outsiders (focus of 7+ picks)
+    target_base[(target_base.PPG > 3.5) & (target_base.Position == 'MID')].minutes_last_season.quantile(0.25)
+    target_base[(target_base.PPG > 3.5) & (target_base.Position == 'MID')].points_last_season.quantile(0.25)
+
+    # For FWDs -> most starters are already out. Time to look what players with less than 1500 mins and more than 500 mmins IN THE PREVIOUS SEASON can give
+    lower_mins = anl_df[(anl_df.minutes_last_season < 1500) & (anl_df.minutes_last_season > 500)]
+    # Our goal is to find FWDs with few minutes in past season and more minutes in his next season (and points)
+    plot_feature_distribution_by_ppg(lower_mins[lower_mins.Position == 'FWD'], min_ppg=3.5, features=features_points)
+    plot_feature_distribution_by_ppg(lower_mins[lower_mins.Position == 'FWD'], min_ppg=3.5, features=features_minutes)
+
+    # The distributions are slightly similar...
+    # Minutes past season (Q3) seems to have some predictability. Also points_last_season can give some insights
+    lower_mins[(lower_mins.PPG > 3.5) & (lower_mins.Position == 'MID')].minutes_last_season.quantile(0.75)
+    lower_mins[(lower_mins.PPG > 3.5) & (lower_mins.Position == 'MID')].points_last_season.quantile(0.5)
+
+    # GKs...
+    # A lot still available, so let's do the traditional analysis.
+    plot_feature_distribution_by_ppg(target_base[target_base.Position == 'GK'], min_ppg=3.5, features=features_points)
+    plot_feature_distribution_by_ppg(target_base[target_base.Position == 'GK'], min_ppg=3.5, features=features_minutes)
+
+    # There is no clear difference there. 
+    # Let's use 2500 mins a mins threshold
+    # And Q1 points last season
+    target_base[(target_base.PPG > 3.5) & (target_base.Position == 'GK')].points_last_season.quantile(0.25)
+
+    # Tier 5 -> last tier before selecting only based on initial schedule
+    ppg_125th = get_ppg_pos(anl_df, 125)
+    print("\nPPG of the 125th player each season:", (ppg_125th))
+    # Idea is to get players who performed bad last season, but have some indicators that can get a better performance
+    lower_mins = anl_df[(anl_df.points_last_season < 3.5) & (anl_df.minutes_last_season > 800)]
+    
+    # Our goal is to find FWDs with few minutes in past season and more minutes in his next season (and points)
+    plot_feature_distribution_by_ppg(lower_mins[lower_mins.Position == 'DEF'], min_ppg=3.3, features=features_points)
+    plot_feature_distribution_by_ppg(lower_mins[lower_mins.Position == 'DEF'], min_ppg=3.3, features=features_minutes)
+    
+    # We have higher Q3 for avg last 2 seasons minutes and a higher Q2 for avg points last season
+    # It can indicates to keep an eye on players with some experience
+    lower_mins[(lower_mins.PPG > 3.3) & (lower_mins.Position == 'DEF')].avg_minutes_last_2_seasons.quantile(0.75)
+    lower_mins[(lower_mins.PPG > 3.3) & (lower_mins.Position == 'DEF')].avg_points_last_2_seasons.quantile(0.5)
+
+    # FOR MIDs
+    # First idea: low threshold, focused only on past performance for players with more than one season
+    # So, using avg_points_last_2_seasons or even avg_points_last_3_seasons
+    lower_mins = anl_df[(anl_df.points_last_season < 3.5) & (anl_df.minutes_last_season > 800) & (anl_df.time_in_league > 2)]
+    plot_feature_distribution_by_ppg(lower_mins[lower_mins.Position == 'MID'], min_ppg=3.3, features=features_points)
+    plot_feature_distribution_by_ppg(lower_mins[lower_mins.Position == 'MID'], min_ppg=3.3, features=features_minutes)
+
+    lower_mins[(lower_mins.PPG > 3.3) & (lower_mins.Position == 'MID')].avg_points_last_2_seasons.quantile(0.5)
+    # Idea is to be use a wide threshold, but focused on previous performance for players with more than one season
+    # For players with time_in_league <=2, o a different analysis based on last season
+    lower_mins = anl_df[(anl_df.points_last_season < 3.5) & (anl_df.minutes_last_season > 800) & (anl_df.time_in_league <= 2)]
+    plot_feature_distribution_by_ppg(lower_mins[lower_mins.Position == 'MID'], min_ppg=3.3, features=features_points)
+    plot_feature_distribution_by_ppg(lower_mins[lower_mins.Position == 'MID'], min_ppg=3.3, features=features_minutes)
+
+    lower_mins[(lower_mins.PPG > 3.3) & (lower_mins.Position == 'MID')].points_last_season.quantile(0.5)
+
+    # FOR FWDs
+    # Last group, I'll split the analysis
+    # First looking at FWDs with not too much points, but a lot of minutes
+    plot_feature_distribution_by_ppg(target_base[target_base.Position == 'GK'], min_ppg=3.3, features=features_points)
+    plot_feature_distribution_by_ppg(target_base[target_base.Position == 'GK'], min_ppg=3.3, features=features_minutes)
+
+    target_base[(target_base.PPG > 3.3) & (target_base.Position == 'GK')].avg_points_last_2_seasons.quantile(0.25)
+    lower_mins[(lower_mins.PPG > 3.3) & (lower_mins.Position == 'FWD')].points_last_season.quantile(0.75)
+
+
+
+
+
+
+
+
     
 
 
@@ -413,8 +513,7 @@ def main():
     ppg_50th = get_ppg_pos(anl_df, 100)
     print("\nPPG of the 100th player each season:", (ppg_50th))
     
-    ppg_50th = get_ppg_pos(anl_df, 125)
-    print("\nPPG of the 125th player each season:", (ppg_50th))
+    
     
     ppg_50th = get_ppg_pos(anl_df, 150)
     print("\nPPG of the 150th player each season:", (ppg_50th))
